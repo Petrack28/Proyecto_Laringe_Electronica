@@ -29,8 +29,10 @@ int FREC_BASE  = 75;
 int FREC_AGUDO = 90;
 int FREC_GRAVE = 60;
 
-// ---- Ciclo de trabajo en % (0-100), se carga desde flash al inicio ----
-int DUTY_PORCENTAJE = 25;   // valor por defecto más bajo que el 78% original
+// ---- Ciclo de trabajo en % (0-100) POR CADA FRECUENCIA, se cargan desde flash ----
+int DUTY_BASE  = 25;   // ej. 40 Hz -> periodo largo, duty bajo alcanza
+int DUTY_AGUDO = 50;   // ej. 100 Hz -> periodo corto, necesita mas duty
+int DUTY_GRAVE = 20;
 
 int frecuenciaAnterior = -1;
 
@@ -164,6 +166,14 @@ const char* HTML = R"rawliteral(
              oninput="document.getElementById('vBase').textContent=this.value+' Hz'">
       <span class="val" id="vBase">75 Hz</span>
     </div>
+    <div class="slider-row">
+      <label>Duty</label>
+      <input type="range" class="duty" id="dBase" min="5" max="100" value="25"
+             oninput="document.getElementById('vdBase').textContent=this.value+' %'">
+      <span class="val" id="vdBase">25 %</span>
+    </div>
+
+    <div class="divider"></div>
 
     <div class="slider-row">
       <label>AGUDO</label>
@@ -171,6 +181,14 @@ const char* HTML = R"rawliteral(
              oninput="document.getElementById('vAgudo').textContent=this.value+' Hz'">
       <span class="val" id="vAgudo">90 Hz</span>
     </div>
+    <div class="slider-row">
+      <label>Duty</label>
+      <input type="range" class="duty" id="dAgudo" min="5" max="100" value="50"
+             oninput="document.getElementById('vdAgudo').textContent=this.value+' %'">
+      <span class="val" id="vdAgudo">50 %</span>
+    </div>
+
+    <div class="divider"></div>
 
     <div class="slider-row">
       <label>GRAVE</label>
@@ -178,15 +196,11 @@ const char* HTML = R"rawliteral(
              oninput="document.getElementById('vGrave').textContent=this.value+' Hz'">
       <span class="val" id="vGrave">60 Hz</span>
     </div>
-
-    <div class="divider"></div>
-    <h2>Ciclo de trabajo (Duty Cycle)</h2>
-
     <div class="slider-row">
-      <label>DUTY</label>
-      <input type="range" class="duty" id="fDuty" min="5" max="100" value="25"
-             oninput="document.getElementById('vDuty').textContent=this.value+' %'">
-      <span class="val" id="vDuty">25 %</span>
+      <label>Duty</label>
+      <input type="range" class="duty" id="dGrave" min="5" max="100" value="20"
+             oninput="document.getElementById('vdGrave').textContent=this.value+' %'">
+      <span class="val" id="vdGrave">20 %</span>
     </div>
 
     <button class="btn-test" onclick="testFrecuencias()">🔊 Probar frecuencias</button>
@@ -203,11 +217,15 @@ const char* HTML = R"rawliteral(
           document.getElementById('fBase').value  = d.base;
           document.getElementById('fAgudo').value = d.agudo;
           document.getElementById('fGrave').value = d.grave;
-          document.getElementById('fDuty').value  = d.duty;
+          document.getElementById('dBase').value  = d.dutyBase;
+          document.getElementById('dAgudo').value = d.dutyAgudo;
+          document.getElementById('dGrave').value = d.dutyGrave;
           document.getElementById('vBase').textContent  = d.base  + ' Hz';
           document.getElementById('vAgudo').textContent = d.agudo + ' Hz';
           document.getElementById('vGrave').textContent = d.grave + ' Hz';
-          document.getElementById('vDuty').textContent  = d.duty  + ' %';
+          document.getElementById('vdBase').textContent  = d.dutyBase  + ' %';
+          document.getElementById('vdAgudo').textContent = d.dutyAgudo + ' %';
+          document.getElementById('vdGrave').textContent = d.dutyGrave + ' %';
         });
     };
 
@@ -215,9 +233,11 @@ const char* HTML = R"rawliteral(
       const base  = document.getElementById('fBase').value;
       const agudo = document.getElementById('fAgudo').value;
       const grave = document.getElementById('fGrave').value;
-      const duty  = document.getElementById('fDuty').value;
+      const dBase  = document.getElementById('dBase').value;
+      const dAgudo = document.getElementById('dAgudo').value;
+      const dGrave = document.getElementById('dGrave').value;
 
-      fetch(`/set?base=${base}&agudo=${agudo}&grave=${grave}&duty=${duty}`)
+      fetch(`/set?base=${base}&agudo=${agudo}&grave=${grave}&dutyBase=${dBase}&dutyAgudo=${dAgudo}&dutyGrave=${dGrave}`)
         .then(r => r.json())
         .then(d => mostrarStatus(d.ok ? '✅ Guardado en flash correctamente' : '❌ Error al guardar', d.ok))
         .catch(() => mostrarStatus('❌ Error de conexión', false));
@@ -227,9 +247,11 @@ const char* HTML = R"rawliteral(
       const base  = document.getElementById('fBase').value;
       const agudo = document.getElementById('fAgudo').value;
       const grave = document.getElementById('fGrave').value;
-      const duty  = document.getElementById('fDuty').value;
+      const dBase  = document.getElementById('dBase').value;
+      const dAgudo = document.getElementById('dAgudo').value;
+      const dGrave = document.getElementById('dGrave').value;
 
-      fetch(`/test?base=${base}&agudo=${agudo}&grave=${grave}&duty=${duty}`)
+      fetch(`/test?base=${base}&agudo=${agudo}&grave=${grave}&dutyBase=${dBase}&dutyAgudo=${dAgudo}&dutyGrave=${dGrave}`)
         .then(() => mostrarStatus('🔊 Probando frecuencias...', true));
     }
 
@@ -256,27 +278,34 @@ void handleGet() {
   String json = "{\"base\":" + String(FREC_BASE) +
                 ",\"agudo\":" + String(FREC_AGUDO) +
                 ",\"grave\":" + String(FREC_GRAVE) +
-                ",\"duty\":" + String(DUTY_PORCENTAJE) + "}";
+                ",\"dutyBase\":" + String(DUTY_BASE) +
+                ",\"dutyAgudo\":" + String(DUTY_AGUDO) +
+                ",\"dutyGrave\":" + String(DUTY_GRAVE) + "}";
   server.send(200, "application/json", json);
 }
 
 void handleSet() {
-  if (server.hasArg("base") && server.hasArg("agudo") && server.hasArg("grave") && server.hasArg("duty")) {
-    FREC_BASE       = server.arg("base").toInt();
-    FREC_AGUDO      = server.arg("agudo").toInt();
-    FREC_GRAVE      = server.arg("grave").toInt();
-    DUTY_PORCENTAJE = constrain(server.arg("duty").toInt(), 5, 100);
+  if (server.hasArg("base") && server.hasArg("agudo") && server.hasArg("grave") &&
+      server.hasArg("dutyBase") && server.hasArg("dutyAgudo") && server.hasArg("dutyGrave")) {
+    FREC_BASE  = server.arg("base").toInt();
+    FREC_AGUDO = server.arg("agudo").toInt();
+    FREC_GRAVE = server.arg("grave").toInt();
+    DUTY_BASE  = constrain(server.arg("dutyBase").toInt(),  5, 100);
+    DUTY_AGUDO = constrain(server.arg("dutyAgudo").toInt(), 5, 100);
+    DUTY_GRAVE = constrain(server.arg("dutyGrave").toInt(), 5, 100);
 
     prefs.begin("laringe", false);
     prefs.putInt("fBase",  FREC_BASE);
     prefs.putInt("fAgudo", FREC_AGUDO);
     prefs.putInt("fGrave", FREC_GRAVE);
-    prefs.putInt("duty",   DUTY_PORCENTAJE);
+    prefs.putInt("dBase",  DUTY_BASE);
+    prefs.putInt("dAgudo", DUTY_AGUDO);
+    prefs.putInt("dGrave", DUTY_GRAVE);
     prefs.end();
 
     server.send(200, "application/json", "{\"ok\":true}");
-    Serial.printf("Guardado -> Base:%d Agudo:%d Grave:%d Duty:%d%%\n",
-                  FREC_BASE, FREC_AGUDO, FREC_GRAVE, DUTY_PORCENTAJE);
+    Serial.printf("Guardado -> Base:%d(%d%%) Agudo:%d(%d%%) Grave:%d(%d%%)\n",
+                  FREC_BASE, DUTY_BASE, FREC_AGUDO, DUTY_AGUDO, FREC_GRAVE, DUTY_GRAVE);
   } else {
     server.send(400, "application/json", "{\"ok\":false}");
   }
@@ -286,34 +315,34 @@ void handleTest() {
   int base  = server.arg("base").toInt();
   int agudo = server.arg("agudo").toInt();
   int grave = server.arg("grave").toInt();
-  int duty  = server.hasArg("duty") ? constrain(server.arg("duty").toInt(), 5, 100) : DUTY_PORCENTAJE;
+  int dBase  = server.hasArg("dutyBase")  ? constrain(server.arg("dutyBase").toInt(),  5, 100) : DUTY_BASE;
+  int dAgudo = server.hasArg("dutyAgudo") ? constrain(server.arg("dutyAgudo").toInt(), 5, 100) : DUTY_AGUDO;
+  int dGrave = server.hasArg("dutyGrave") ? constrain(server.arg("dutyGrave").toInt(), 5, 100) : DUTY_GRAVE;
 
-  int dutyPWM = porcentajeADuty(duty);
-
-  auto tocar = [&](int frec) {
+  auto tocar = [&](int frec, int dutyPorc) {
     ledcDetach(SOLENOIDE_PIN);
     ledcAttach(SOLENOIDE_PIN, frec, PWM_RESOLUCION);
-    ledcWrite(SOLENOIDE_PIN, dutyPWM);
+    ledcWrite(SOLENOIDE_PIN, porcentajeADuty(dutyPorc));
     delay(1000);
     ledcWrite(SOLENOIDE_PIN, 0);
     delay(200);
   };
 
-  tocar(base);
-  tocar(agudo);
-  tocar(grave);
+  tocar(base, dBase);
+  tocar(agudo, dAgudo);
+  tocar(grave, dGrave);
 
   server.send(200, "application/json", "{\"ok\":true}");
 }
 
 // ============================================================
-// Actualizar frecuencia PWM (usa el duty cycle actual guardado)
+// Actualizar frecuencia PWM (usa el duty cycle correspondiente a esa frecuencia)
 // ============================================================
-void actualizarFrecuencia(int frecNueva) {
+void actualizarFrecuencia(int frecNueva, int dutyPorc) {
   if (frecNueva == frecuenciaAnterior) return;
   ledcDetach(SOLENOIDE_PIN);
   ledcAttach(SOLENOIDE_PIN, frecNueva, PWM_RESOLUCION);
-  ledcWrite(SOLENOIDE_PIN, porcentajeADuty(DUTY_PORCENTAJE));
+  ledcWrite(SOLENOIDE_PIN, porcentajeADuty(dutyPorc));
   frecuenciaAnterior = frecNueva;
 }
 
@@ -324,15 +353,17 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
 
-  // Cargar frecuencias y duty cycle desde flash
+  // Cargar frecuencias y duty cycles desde flash
   prefs.begin("laringe", true);
-  FREC_BASE       = prefs.getInt("fBase",  75);
-  FREC_AGUDO      = prefs.getInt("fAgudo", 90);
-  FREC_GRAVE      = prefs.getInt("fGrave", 60);
-  DUTY_PORCENTAJE = prefs.getInt("duty",   25);
+  FREC_BASE  = prefs.getInt("fBase",  75);
+  FREC_AGUDO = prefs.getInt("fAgudo", 90);
+  FREC_GRAVE = prefs.getInt("fGrave", 60);
+  DUTY_BASE  = prefs.getInt("dBase",  25);
+  DUTY_AGUDO = prefs.getInt("dAgudo", 50);
+  DUTY_GRAVE = prefs.getInt("dGrave", 20);
   prefs.end();
-  Serial.printf("Cargado -> Base:%d Agudo:%d Grave:%d Duty:%d%%\n",
-                FREC_BASE, FREC_AGUDO, FREC_GRAVE, DUTY_PORCENTAJE);
+  Serial.printf("Cargado -> Base:%d(%d%%) Agudo:%d(%d%%) Grave:%d(%d%%)\n",
+                FREC_BASE, DUTY_BASE, FREC_AGUDO, DUTY_AGUDO, FREC_GRAVE, DUTY_GRAVE);
 
   // Botones
   pinMode(BTN_BASE,  INPUT_PULLUP);
@@ -368,13 +399,13 @@ void loop() {
   bool presion_grave = (digitalRead(BTN_GRAVE) == HIGH);
 
   if (presion_agudo) {
-    actualizarFrecuencia(FREC_AGUDO);
+    actualizarFrecuencia(FREC_AGUDO, DUTY_AGUDO);
   }
   else if (presion_grave) {
-    actualizarFrecuencia(FREC_GRAVE);
+    actualizarFrecuencia(FREC_GRAVE, DUTY_GRAVE);
   }
   else if (presion_base) {
-    actualizarFrecuencia(FREC_BASE);
+    actualizarFrecuencia(FREC_BASE, DUTY_BASE);
   }
   else {
     ledcWrite(SOLENOIDE_PIN, 0);
